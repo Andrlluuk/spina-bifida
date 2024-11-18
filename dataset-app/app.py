@@ -6,9 +6,11 @@ from utils import *
 from dotenv import load_dotenv
 import boto3
 from botocore.exceptions import NoCredentialsError
+from multiprocessing.pool import ThreadPool 
 import os
 import uuid
 import json
+from time import sleep
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -82,43 +84,27 @@ def upload_to_yandex_cloud(file, file_name, bucket, object_name=None):
     except Exception as e:
         st.error(f"An error has occurred: {e}")
 
-# Функция настройки моделей
-@st.cache_resource(show_spinner = "Load model ...")
-def get_processor():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    return MedicalImageProcessor(
-        yolo_model_path='models/best_object_detection.pt',
-        axial_quality_model_path='models/axial_quality.pt',
-        axial_pathology_model_path='models/axial_pathology.pt',
-        sagittal_quality_model_path='models/sagittal_quality.pt',
-        sagittal_pathology_model_path='models/sagittal_pathology.pt',
-        device=device
-    )
-
-# Функции обработки изображений
-@st.cache_data(show_spinner = "Image processing ...", ttl = 3600, max_entries = 100)
-def cache_process_image(img_bytes, img_name):
-    return processor.process_image(img_bytes, img_name)
-
-def process_uploaded_files(uploaded_files):
-    with stqdm(uploaded_files, mininterval=1) as pbar:
-        st.session_state['imgs'] = {}
-        st.session_state['processed_images'] = {}
-        for uploaded_file in pbar:
-            img = Image.open(uploaded_file)
-            img_bytes = io.BytesIO()
-            img.save(img_bytes, format='PNG')
-            img_bytes = img_bytes.getvalue()
-            img_name = uploaded_file.name
-            if img_name not in st.session_state['imgs']:
-                result = cache_process_image(img_bytes, img_name)
-                st.session_state['imgs'][img_name] = img
-                st.session_state['processed_images'][img_name] = result
-
 # Функция генерации уникального идентификатора файла
 def get_unique_id():
     unique_id = str(uuid.uuid4())
     return unique_id
+
+def upload(uploaded_file): 
+    img = Image.open(uploaded_file)
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='PNG')
+    img_bytes = img_bytes.getvalue()
+    img_name = uploaded_file.name
+
+    uniquie_id = get_unique_id()
+    img_file_name = f'img_{uniquie_id}_{img_name}'
+
+    # Временное хранение файлов
+    #st.session_state['imgs'][img_name].save(img_file_name)
+
+    # Запись на S3
+    upload_to_yandex_cloud(img_name, img_file_name, BUCKET, f'data/{img_file_name}')
+
 
 ##############
 # Приложение #
@@ -155,73 +141,16 @@ else:
             label_visibility='visible'
         )
         
-        processor = get_processor()
-        
         if uploaded_files:
-            process_uploaded_files(uploaded_files)
+            pool = ThreadPool(processes=10) 
+            pool.map(upload, uploaded_files) 
 
-            processed_images = st.session_state['processed_images']
-            imgs = st.session_state['imgs']
-
-            files = list(processed_images.keys())
-            count = 0
-            for file in files:
-                uniquie_id = get_unique_id()
-                annotation_file_name = f'annotation_{uniquie_id}_{file}.json'
-                img_file_name = f'img_{uniquie_id}_{file}'
-                try:
-                    res = {
-                        'img': img_file_name,
-                        'old_file_name': file,
-                        'org_id': org_id,
-                        'quality': processed_images[file]["quality"]["prediction_prob"],
-                        'pathology': processed_images[file]["pathology"]["prediction_prob"],
-                        'roi': {
-                                'prediction': processed_images[file]["plane"]['prediction_prob'].tolist(),
-                                'plane': processed_images[file]["plane"]['plane'],
-                                'box': {
-                                    'x1': processed_images[file]["plane"]['box'][0].tolist(),
-                                    'y1': processed_images[file]["plane"]['box'][1].tolist(),
-                                    'x2': processed_images[file]["plane"]['box'][2].tolist(),
-                                    'y2': processed_images[file]["plane"]['box'][3].tolist()
-                                    }
-                                }
-                        }
-                    count += 1
-                    # Временное хранение файлов
-                    st.session_state['imgs'][file].save(img_file_name)
-                    with open(annotation_file_name, 'w') as f:
-                        json.dump(res, f)
-                
-                    # Запись на S3
-                    upload_to_yandex_cloud(file, img_file_name, BUCKET, f'data/{img_file_name}')
-                    upload_to_yandex_cloud(file, annotation_file_name, BUCKET, f'annotation/{annotation_file_name}')
-
-                except:
-                    res = {
-                        'img': img_file_name,
-                        'old_file_name': file,
-                        'org_id': org_id,
-                        'error': 'ROI not found'
-                    }
-
-                    # Временное хранение файлов
-                    st.session_state['imgs'][file].save(img_file_name)
-                    with open(annotation_file_name, 'w') as f:
-                        json.dump(res, f)
-
-                    # Запись на S3
-                    upload_to_yandex_cloud(file, img_file_name, BUCKET, f'no_roi_data/{img_file_name}')
-                    upload_to_yandex_cloud(file, annotation_file_name, BUCKET, f'no_roi_annotation/{annotation_file_name}')
-                    
 
 
             # Вывод информации о загруженных и обработанных файлах
-            col1, col2 = st.columns(2)
+            col1 = st.columns(1)[0]
             with col1:
-                st.metric(label='Uploaded', value=len(files))
-            with col2:
-                st.metric(label='ROI detected', value=count)
+                st.metric(label='Uploaded', value=len(uploaded_files))
 
             st.success(f'Thank you for your contribution! To upload more files, press *Ctrl+R* (*Cmd+R*) to restart the application.', icon="✅")
 
