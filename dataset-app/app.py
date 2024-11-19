@@ -135,8 +135,8 @@ def process_file(uploaded_file):
             json.dump(res, f)
     
         # Запись на S3
-        #upload_to_yandex_cloud(uploaded_file, img_file_name, BUCKET, f'data/{img_file_name}')
-        #upload_to_yandex_cloud(uploaded_file, annotation_file_name, BUCKET, f'annotation/{annotation_file_name}')
+        upload_to_yandex_cloud(uploaded_file, img_file_name, BUCKET, f'data/{img_file_name}')
+        upload_to_yandex_cloud(uploaded_file, annotation_file_name, BUCKET, f'annotation/{annotation_file_name}')
 
     except:
         res = {
@@ -151,8 +151,8 @@ def process_file(uploaded_file):
             json.dump(res, f)
 
         # Запись на S3
-        #upload_to_yandex_cloud(uploaded_file, img_file_name, BUCKET, f'data/{img_file_name}')
-        #upload_to_yandex_cloud(uploaded_file, annotation_file_name, BUCKET, f'annotation/{annotation_file_name}')
+        upload_to_yandex_cloud(uploaded_file, img_file_name, BUCKET, f'data/{img_file_name}')
+        upload_to_yandex_cloud(uploaded_file, annotation_file_name, BUCKET, f'annotation/{annotation_file_name}')
 
 
 # Функция генерации уникального идентификатора файла
