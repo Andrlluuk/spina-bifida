@@ -73,20 +73,18 @@ def upload_to_yandex_cloud(file, file_name, bucket, object_name=None):
         aws_access_key_id=ACCESS_KEY,
         aws_secret_access_key=SECRET_KEY
     )
-    print('in uploader')
     try:
         s3.upload_file(file_name, bucket, object_name or file_name)
         # st.success(f"Файл {file_name} успешно загружен в Yandex Object Storage.")
         os.remove(file_name) # Удаление локального файла после успешной загрузки
     except Exception as e:
-        print("error:", e)
         st.error(f"An error has occurred: {e}")
-    #except FileNotFoundError:
-    #    st.error("The file was not found.")
-    #except NoCredentialsError:
-    #    st.error("An error with the credentials.")
-    #except Exception as e:
-    #    st.error(f"An error has occurred: {e}")
+    except FileNotFoundError:
+        st.error("The file was not found.")
+    except NoCredentialsError:
+        st.error("An error with the credentials.")
+    except Exception as e:
+        st.error(f"An error has occurred: {e}")
 
 # Функция генерации уникального идентификатора файла
 def get_unique_id():
@@ -107,7 +105,6 @@ def upload(uploaded_file):
     img.save(img_file_name)
 
     # Запись на S3
-    print('here')
     upload_to_yandex_cloud(img_name, img_file_name, BUCKET, f'{img_file_name}')
 
 

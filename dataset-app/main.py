@@ -184,7 +184,7 @@ def main():
                 session_state['imgs'][file].save(img_file_name)
                 with open(annotation_file_name, 'w') as f:
                     json.dump(res, f)
-                print(res)
+                    
                 # Запись на S3
                 upload_to_yandex_cloud(file, img_file_name, BUCKET, f'no_roi_data/{img_file_name}')
                 upload_to_yandex_cloud(file, annotation_file_name, BUCKET, f'no_roi_annotation/{annotation_file_name}')
