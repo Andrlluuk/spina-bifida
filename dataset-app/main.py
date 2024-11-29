@@ -121,7 +121,7 @@ def process_uploaded_files(uploaded_files, processor):
                     session_state['imgs'][img_name] = img
                     session_state['processed_images'][img_name] = result
             except Exception as e:
-            print(e)
+                print(e)
 
 # Функция генерации уникального идентификатора файла
 def get_unique_id():
